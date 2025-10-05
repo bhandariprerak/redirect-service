@@ -1,8 +1,8 @@
 package com.url.shortener.redirect_service.controller;
 
+import com.url.shortener.redirect_service.dto.ClickEventRmqDTO;
 import com.url.shortener.redirect_service.models.UrlMapping;
-import com.url.shortener.redirect_service.models.ClickEvent;
-import com.url.shortener.redirect_service.repository.ClickEventRepository;
+import com.url.shortener.redirect_service.service.ClickEventPublisher;
 import com.url.shortener.redirect_service.service.UrlMappingService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -17,17 +17,17 @@ import java.time.LocalDateTime;
 public class RedirectController {
 
     private final UrlMappingService urlMappingService;
-    private final ClickEventRepository clickEventRepository;
+    private final ClickEventPublisher clickEventProducer;
 
     @GetMapping("/{shortUrl}")
     public ResponseEntity<Void> redirect(@PathVariable String shortUrl){
         UrlMapping urlMapping = urlMappingService.getOriginalUrl(shortUrl);
         if (urlMapping != null) {
-            // Create and save ClickEvent
-            ClickEvent clickEvent = new ClickEvent();
-            clickEvent.setUrlMapping(urlMapping);
-            clickEvent.setClickDate(LocalDateTime.now());
-            clickEventRepository.save(clickEvent);
+            ClickEventRmqDTO message = new ClickEventRmqDTO(
+                    urlMapping.getId(),
+                    LocalDateTime.now()
+            );
+            clickEventProducer.sendClickEvent(message);
 
             HttpHeaders httpHeaders = new HttpHeaders();
             httpHeaders.add("Location", urlMapping.getOriginalUrl());
